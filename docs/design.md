@@ -696,6 +696,8 @@ agentflow tree ./my_workflow
 | Markdown for instructions | Natural format for agent prompts. Easy to write and maintain. |
 | Pydantic for schemas | Strong validation, auto-serialization, good Python ecosystem integration. |
 | tools.md as universal registry | One markdown file defines tools of any type (python, shell, http, mcp, reference). `tools/` directory for complex cases. Both merge. |
+| Shared resources | `shared/` directory for reusable tools and instruction snippets. Explicit pull — no auto-inheritance of shared tools. |
+| Layered tool scoping | Tool-side (`scope`), task-side (`inherit_tools`, `exclude_tools`, `block_tools`, `inherit_tools_depth`). All combinable with defined resolution order. |
 | Auto-discovery everywhere | Tools, subtasks, hooks — all discovered from folder structure. Config only when overriding defaults. |
 | Vertical data flow | Siblings don't depend on each other. Parent mediates. Adding/removing a task never breaks other tasks at the same level. |
 | Hybrid task discovery | Auto-discover by default, explicit config as override. Drop a folder in = new task. Priority multiples of 10 for easy insertion. |
@@ -727,5 +729,5 @@ agentflow tree ./my_workflow
 - **Streaming output** from agent during task execution
 - **Web UI** for workflow monitoring and visualization
 - **Plugin system** for custom TaskExecutors
-- **Shared tool libraries** that multiple tasks can reference
+
 - **Template marketplace** for common workflow patterns
