@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentflow"
+version = "0.1.0"
+description = "Agentic workflow framework where each task is a folder."
+readme = "docs/design.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "agentflow contributors" }]
+dependencies = [
+    "pydantic>=2",
+    "pyyaml>=6",
+    "click>=8",
+    "rich>=13",
+]
+
+[project.optional-dependencies]
+ollama = ["ollama>=0.3"]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+agentflow = "agentflow.cli.main:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agentflow"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
