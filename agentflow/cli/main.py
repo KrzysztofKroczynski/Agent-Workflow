@@ -15,6 +15,11 @@ from agentflow.core.context import ContextManager
 from agentflow.core.executor import TaskExecutor
 from agentflow.core.loader import Task, TaskLoader
 from agentflow.exceptions import AgentflowError
+from agentflow.utils.reporter import RunReporter
+
+# Ensure UTF-8 output on all platforms (matters on Windows where default is cp1250).
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 console = Console()
 
@@ -63,19 +68,21 @@ def run(path: str, context_json: str | None, verbose: bool) -> None:
         sys.exit(1)
     _collect_and_install_dependencies(root)
     cm = ContextManager(initial)
-    executor = TaskExecutor(root, ProviderRegistry(), loader.registry, cm)
+    reporter = RunReporter(verbose=verbose)
+    executor = TaskExecutor(root, ProviderRegistry(), loader.registry, cm, reporter)
     try:
         result = asyncio.run(executor.run())
     except AgentflowError as e:
-        console.print(f"[red]Workflow failed:[/red] {e}")
+        console.print(f"\n[red]Workflow failed:[/red] {e}")
         sys.exit(1)
-    console.print_json(json.dumps(result.context, default=str))
-    if verbose:
-        console.print("\n[bold]Audit trail:[/bold]")
-        for entry in result.audit:
-            console.print(
-                f"  {entry.task_name}: {entry.status} ({entry.started_at} → {entry.finished_at})"
-            )
+    console.rule("[dim]output[/dim]", style="dim")
+    output_keys = root.config.output or []
+    output = (
+        {k: result.context[k] for k in output_keys if k in result.context}
+        if output_keys
+        else result.context
+    )
+    console.print_json(json.dumps(output, default=str))
 
 
 @cli.command()
@@ -106,9 +113,9 @@ def validate(path: str) -> None:
 
     if errors:
         for err in errors:
-            console.print(f"[red]✗[/red] {err}")
+            console.print(f"[red]x[/red] {err}")
         sys.exit(1)
-    console.print("[green]✓[/green] Workflow valid.")
+    console.print("[green]✓[/green] Workflow valid.")  # stdout is UTF-8 by this point
     _print_tree(root)
 
 

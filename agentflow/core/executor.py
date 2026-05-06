@@ -17,6 +17,7 @@ from agentflow.core.tool import ToolContext, ToolRegistry, ToolSpec
 from agentflow.exceptions import AgentflowError, TaskTimeoutError, ToolError
 from agentflow.hooks.base import load_hook
 from agentflow.utils.logging import get_logger
+from agentflow.utils.reporter import RunReporter
 
 logger = get_logger(__name__)
 
@@ -28,11 +29,13 @@ class TaskExecutor:
         provider_registry: ProviderRegistry,
         tool_registry: ToolRegistry,
         context: ContextManager | None = None,
+        reporter: RunReporter | None = None,
     ) -> None:
         self.root = root
         self.providers = provider_registry
         self.tools = tool_registry
         self.context = context or ContextManager()
+        self.reporter = reporter
 
     async def run(self) -> WorkflowResult:
         await self._run_task(self.root)
@@ -59,6 +62,9 @@ class TaskExecutor:
             logger.info("Task '%s' is disabled — skipping.", task.name)
             return
 
+        if self.reporter:
+            self.reporter.task_start(task)
+
         audit = self.context.start_audit(task)
         try:
             self._run_hook(task, "pre_run")
@@ -77,8 +83,12 @@ class TaskExecutor:
             self._run_hook(task, "post_run")
             self.context.capture_output(task, response_text)
             self.context.finish_audit(audit, "ok")
+            if self.reporter:
+                self.reporter.task_done(task, "ok")
         except Exception:
             self.context.finish_audit(audit, "error")
+            if self.reporter:
+                self.reporter.task_done(task, "error")
             raise
 
     def _run_hook(self, task: Task, kind: str) -> None:
@@ -167,8 +177,12 @@ class TaskExecutor:
     ) -> str:
         last_text = ""
         for _ in range(20):  # hard cap on tool-use turns
+            if self.reporter:
+                self.reporter.agent_call(task, instructions, messages, tool_list)
             response: AgentResponse = provider.call(instructions, tool_list, messages)
             last_text = response.text or last_text
+            if self.reporter:
+                self.reporter.agent_response(task, response.text or "", bool(response.tool_calls))
             if not response.tool_calls:
                 return response.text or last_text
             messages.append(
@@ -191,6 +205,8 @@ class TaskExecutor:
                     logger=logger,
                 )
                 result = self.tools.invoke(spec, ctx, **call.arguments)
+                if self.reporter:
+                    self.reporter.tool_call(task, call.name, call.arguments, result)
                 messages.append(
                     {
                         "role": "tool",
