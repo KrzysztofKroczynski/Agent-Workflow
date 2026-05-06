@@ -116,6 +116,18 @@ Tools are auto-discovered from three sources:
 - Inherited ancestor tools are added according to scoping rules (see 2.10)
 - No config required for own tools — just add a `tools.md` or drop a `.py` file in `tools/`
 
+### 2.8.1 Tool Dependencies
+
+If a task's tools or hooks require third-party packages, declare them in `task.yaml`:
+
+```yaml
+dependencies:
+  - requests>=2
+  - beautifulsoup4
+```
+
+`agentflow run` collects `dependencies` from every task in the tree and installs them (via `pip`) before execution starts. Duplicates are deduplicated. Packages install into whichever Python environment `agentflow` itself is running in.
+
 ### 2.9 Shared Resources
 
 A workflow can have a `shared/` directory at the root level for reusable tools and instruction snippets:
@@ -713,6 +725,8 @@ agentflow tree ./my_workflow
 - **pyyaml** - YAML parsing
 - **click** - CLI framework
 - **rich** - Terminal output formatting
+
+Pipeline-specific packages are NOT part of the framework's dependencies. Declare them in each task's `task.yaml` under `dependencies` — the runner installs them automatically before execution.
 
 **Provider extras (install only what you need):**
 - `agentflow[claude]` -> **anthropic**

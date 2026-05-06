@@ -1,0 +1,14 @@
+name: review_fit
+priority: 30
+
+input:
+  required:
+    - cv_draft
+    - job_description
+    - key_requirements
+
+output:
+  - fit_review
+
+settings:
+  timeout: 90

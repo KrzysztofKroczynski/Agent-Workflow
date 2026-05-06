@@ -1,0 +1,15 @@
+name: draft_cv
+priority: 20
+
+input:
+  required:
+    - cv_info_path
+    - job_title
+    - job_description
+    - key_requirements
+
+output:
+  - cv_draft
+
+settings:
+  timeout: 120

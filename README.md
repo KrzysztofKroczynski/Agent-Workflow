@@ -180,6 +180,8 @@ settings:
 input:
   required: [api_base_url]
 output: [raw_data]
+dependencies:
+  - requests>=2      # pip packages needed by this task's tools or hooks
 ```
 
 ---

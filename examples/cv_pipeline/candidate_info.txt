@@ -1,0 +1,37 @@
+Name: Jane Doe
+Email: jane.doe@email.com
+Phone: +1 234 567 8901
+Location: San Francisco, CA
+LinkedIn: linkedin.com/in/janedoe
+GitHub: github.com/janedoe
+
+WORK EXPERIENCE
+
+Software Engineer — Acme Corp (2021–2024)
+- Built REST APIs in Python (FastAPI) serving 50,000 daily active users
+- Led migration from monolith to microservices, cutting deployment time by 40%
+- Designed and maintained CI/CD pipelines using GitHub Actions and Docker
+- Mentored 2 junior developers through onboarding and code reviews
+- Technologies: Python, FastAPI, PostgreSQL, Redis, Docker, AWS (EC2, S3, RDS)
+
+Junior Developer — StartupXYZ (2019–2021)
+- Developed React frontend for internal analytics dashboard used by 200 staff
+- Integrated third-party APIs (Stripe, Twilio, SendGrid)
+- Wrote unit and integration tests, raising coverage from 40% to 85%
+- Technologies: JavaScript, TypeScript, React, Node.js, MySQL
+
+EDUCATION
+
+B.Sc. Computer Science — State University (2015–2019)
+GPA: 3.7 / 4.0
+Relevant coursework: Algorithms, Distributed Systems, Database Design, Machine Learning
+
+SKILLS
+Languages: Python, JavaScript, TypeScript, SQL, Bash
+Frameworks: FastAPI, React, Node.js, Express
+Databases: PostgreSQL, MySQL, Redis
+Infrastructure: Docker, Kubernetes, AWS, GitHub Actions, Terraform
+Other: REST API design, Agile/Scrum, technical writing, code review
+
+CERTIFICATIONS
+AWS Certified Developer – Associate (2022)

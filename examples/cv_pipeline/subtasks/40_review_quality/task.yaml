@@ -1,0 +1,12 @@
+name: review_quality
+priority: 40
+
+input:
+  required:
+    - cv_draft
+
+output:
+  - quality_review
+
+settings:
+  timeout: 90

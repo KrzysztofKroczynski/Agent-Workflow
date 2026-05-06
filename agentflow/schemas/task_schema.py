@@ -98,3 +98,4 @@ class TaskConfig(BaseModel):
 
     conditions: ConditionsBlock | None = None
     context: dict[str, Any] = Field(default_factory=dict)
+    dependencies: list[str] = Field(default_factory=list)

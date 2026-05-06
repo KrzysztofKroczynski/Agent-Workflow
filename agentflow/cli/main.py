@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -16,6 +17,30 @@ from agentflow.core.loader import Task, TaskLoader
 from agentflow.exceptions import AgentflowError
 
 console = Console()
+
+
+def _collect_and_install_dependencies(root_task: Task) -> None:
+    packages: list[str] = []
+
+    def _walk(task: Task) -> None:
+        packages.extend(task.config.dependencies)
+        for child in task.subtasks:
+            _walk(child)
+
+    _walk(root_task)
+    if not packages:
+        return
+    seen: set[str] = set()
+    unique = [p for p in packages if not (p in seen or seen.add(p))]  # type: ignore[func-returns-value]
+    console.print(f"[dim]Installing pipeline dependencies: {', '.join(unique)}[/dim]")
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", *unique],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        console.print(f"[red]Dependency install failed:[/red]\n{result.stderr.strip()}")
+        sys.exit(1)
 
 
 @click.group()
@@ -36,6 +61,7 @@ def run(path: str, context_json: str | None, verbose: bool) -> None:
     except AgentflowError as e:
         console.print(f"[red]Failed to load workflow:[/red] {e}")
         sys.exit(1)
+    _collect_and_install_dependencies(root)
     cm = ContextManager(initial)
     executor = TaskExecutor(root, ProviderRegistry(), loader.registry, cm)
     try:

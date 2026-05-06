@@ -1,0 +1,14 @@
+name: final_cv
+priority: 50
+
+input:
+  required:
+    - cv_draft
+    - fit_review
+    - quality_review
+
+output:
+  - final_cv
+
+settings:
+  timeout: 120

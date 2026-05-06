@@ -65,6 +65,23 @@ class OllamaProvider(AgentProvider):
             return False
         return _supports_native(self._model or "")
 
+    def _normalize_messages(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Convert executor's generic tool_calls format to ollama's expected format."""
+        out = []
+        for msg in messages:
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                calls = [
+                    {"function": {"name": tc["name"], "arguments": tc["arguments"]}}
+                    for tc in msg["tool_calls"]
+                ]
+                out.append({**msg, "tool_calls": calls})
+            elif msg.get("role") == "tool":
+                # ollama expects role "tool" with just content
+                out.append({"role": "tool", "content": msg.get("content", "")})
+            else:
+                out.append(msg)
+        return out
+
     def _tools_payload(self, tools: list[ToolSpec]) -> list[dict[str, Any]]:
         return [
             {
@@ -86,7 +103,7 @@ class OllamaProvider(AgentProvider):
     ) -> AgentResponse:
         if self._client is None:
             raise ProviderError("OllamaProvider.configure() was not called.")
-        full_messages = [{"role": "system", "content": instructions}, *messages]
+        full_messages = [{"role": "system", "content": instructions}, *self._normalize_messages(messages)]
         if self.supports_tool_calling() and tools:
             response = self._client.chat(
                 model=self._model,

@@ -1,0 +1,14 @@
+name: fetch_job
+priority: 10
+
+input:
+  required:
+    - url
+
+output:
+  - job_title
+  - job_description
+  - key_requirements
+
+settings:
+  timeout: 60

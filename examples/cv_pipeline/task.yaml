@@ -1,0 +1,19 @@
+name: cv_pipeline
+description: Tailors a CV to a job posting URL using candidate information from a text file.
+
+providers:
+  default: ollama
+  ollama:
+    module: agentflow.providers.ollama
+    model: llama3.2:3b
+    base_url: http://localhost:11434
+
+settings:
+  timeout: 120
+  max_retries: 2
+
+subtasks:
+  execution_type: sequential
+
+dependencies:
+  - fpdf2>=2.7
