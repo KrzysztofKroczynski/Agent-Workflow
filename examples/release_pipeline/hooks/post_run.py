@@ -22,7 +22,7 @@ def run(ctx: Any, task: Any) -> None:
             "dependencies": s.get("dependency_result"),
         },
         "build": {
-            "compile_passed": (s.get("compile_result") or {}).get("passed"),
+            "compile_passed": s.get("compile_passed"),
             "tests_passed": s.get("tests_passed"),
             "test_result": s.get("test_result"),
             "artifact_path": s.get("artifact_path"),

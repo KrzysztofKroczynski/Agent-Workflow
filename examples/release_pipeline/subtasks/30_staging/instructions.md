@@ -7,11 +7,3 @@ The input context contains the outputs from the staging loop:
 - `feedback`: reviewer feedback
 
 Write a short deployment summary covering: what was deployed, test results, and the approval decision.
-
-Respond with ONLY a JSON code block:
-
-```json
-{
-  "staging_summary": "... your summary ..."
-}
-```

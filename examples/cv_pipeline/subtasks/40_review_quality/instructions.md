@@ -11,9 +11,3 @@ Review the CV for:
 - Overall readability and professional tone
 
 Provide specific, line-level corrections where possible.
-
-Respond with ONLY a JSON code block:
-
-```json
-{"quality_review": "... your detailed corrections and suggestions ..."}
-```

@@ -12,9 +12,3 @@ Steps:
 3. If `cv_style` is present in the context, use the `format_bullet` tool to rewrite every work experience bullet point to follow that style. Example style: "used X to achieve Y in Z context". Apply it consistently — every bullet must follow the same pattern.
 
 The CV must include: Contact Information, Professional Summary, Work Experience, Education, Skills.
-
-Respond with ONLY a JSON code block:
-
-```json
-{"cv_draft": "... full CV text here ..."}
-```

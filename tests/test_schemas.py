@@ -53,7 +53,7 @@ def test_child_yaml_parses():
     assert cfg.agent.provider == "claude"
     assert cfg.agent.temperature == 0.2
     assert cfg.input.required == ["api_base_url"]
-    assert cfg.output == ["raw_data"]
+    assert cfg.output == {"raw_data": None}
 
 
 def test_defaults():

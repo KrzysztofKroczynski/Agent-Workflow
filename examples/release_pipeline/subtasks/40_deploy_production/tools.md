@@ -22,6 +22,6 @@ def deploy_to_production(ctx, artifact_path: str, version: str, output_dir: str)
 
     return {
         "production_url": "https://app.example.com",
-        "manifest_path": str(manifest_path),
+        "production_manifest_path": str(manifest_path),
     }
 ```

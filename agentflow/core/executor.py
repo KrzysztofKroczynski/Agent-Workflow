@@ -233,6 +233,18 @@ class TaskExecutor:
         if any_failed and on_error == "continue":
             raise AgentflowError(f"One or more subtasks of '{task.name}' failed.")
 
+    def _build_output_injection(self, task: Task) -> str:
+        output = task.config.output
+        if not output:
+            return ""
+        template = {key: f"<{type_hint}>" if type_hint else "..." for key, type_hint in output.items()}
+        template_str = json.dumps(template, indent=2)
+        return (
+            "After completing all tool calls, respond with ONLY a JSON code block "
+            "containing exactly these keys:\n"
+            f"```json\n{template_str}\n```"
+        )
+
     async def _invoke_agent(
         self, task: Task, settings: Any, final_pass: bool = False
     ) -> str:
@@ -246,6 +258,10 @@ class TaskExecutor:
             else None
         )
         instructions = render_instructions(task.instructions or "", shared_dir)
+
+        if task.config.output and "```json" not in instructions:
+            injection = self._build_output_injection(task)
+            instructions = f"{instructions}\n\n{injection}"
 
         visible = self.tools.resolve_for_task(task)
         tool_list = list(visible.values())

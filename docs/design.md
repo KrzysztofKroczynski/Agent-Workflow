@@ -78,6 +78,40 @@ A shared state object that flows between tasks. Each task receives input context
 - If no `output` is declared (including minimal tasks), the agent's full response is stored under the task's name (e.g., `context["fetch_data"] = agent_response`)
 - This means minimal tasks always contribute to context — no output is ever lost
 
+**Output declaration forms:**
+
+List form — key names only (minimal, no type information):
+```yaml
+output:
+  - approved
+  - feedback
+```
+
+Dict form — keys with optional types:
+```yaml
+output:
+  approved: bool
+  feedback: str
+  raw_result:        # type omitted — framework treats as untyped
+```
+
+Supported types: `str`, `int`, `float`, `bool`, `list`, `dict`. Types are optional — omitting a type is valid and leaves that key untyped. The list form is equivalent to a dict where every key is untyped.
+
+When `output` is declared, the framework automatically appends a JSON output instruction to the agent prompt — task authors do not need to write "respond with a JSON code block" in `instructions.md`. The injected instruction uses any declared types to tell the LLM the expected shape:
+
+```
+# injected by framework (list form)
+Respond with a JSON code block containing these keys: approved, feedback
+
+# injected by framework (dict form with types)
+Respond with a JSON code block with the following keys and types:
+- approved (bool)
+- feedback (str)
+- raw_result (any)
+```
+
+If a task's `instructions.md` already contains explicit JSON output instructions, they take precedence and no injection occurs.
+
 ### 2.5 Task Identity
 
 A folder is recognized as a task if it contains at least one of:
@@ -409,9 +443,17 @@ input:
     - api_base_url
   optional:
     - filter_params
+
+# List form — names only, no types (framework injects: "respond with JSON containing: raw_data, fetch_metadata")
 output:
   - raw_data
   - fetch_metadata
+
+# Dict form — optional types (framework injects typed schema; omit type to leave untyped)
+# output:
+#   raw_data: list
+#   fetch_metadata: dict
+#   fetch_status:          # untyped — equivalent to list form entry
 
 # Subtask execution (optional — if omitted, subtasks/ is auto-discovered)
 # subtasks:
@@ -858,7 +900,7 @@ agentflow tree ./my_workflow
 | Everything is a task | No separate pipeline concept. Uniform rules at every level. Simpler mental model. |
 | Minimal task = one file | Just `instructions.md`. No yaml needed for simple cases. Lowest possible barrier. |
 | YAML for config | Widely understood, supports comments, clean syntax for hierarchical config. |
-| Markdown for instructions | Natural format for agent prompts. Easy to write and maintain. |
+| Markdown for instructions | Natural format for agent prompts. Easy to write and maintain. JSON output boilerplate is injected by the framework — task authors write only the task logic. |
 | Pydantic for schemas | Strong validation, auto-serialization, good Python ecosystem integration. |
 | tools.md as universal registry | One markdown file defines tools of any type (python, shell, http, mcp, reference). `tools/` directory for complex cases. Both merge. |
 | Shared resources | `shared/` directory for reusable tools and instruction snippets. Explicit pull — no auto-inheritance of shared tools. |

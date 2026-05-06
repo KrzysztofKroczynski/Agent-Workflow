@@ -8,12 +8,3 @@ The input context contains:
 Rules:
 - Approve (set `approved` to true) if `integration_tests_passed` is true.
 - Reject (set `approved` to false) if `integration_tests_passed` is false.
-
-Respond with ONLY a JSON code block:
-
-```json
-{
-  "approved": true,
-  "feedback": "All integration checks passed on staging. Approved for production deployment."
-}
-```

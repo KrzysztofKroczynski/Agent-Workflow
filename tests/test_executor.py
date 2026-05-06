@@ -410,3 +410,80 @@ async def test_priority_groups_order(tmp_workflow):
     await executor.run()
     assert finished.index("process") > finished.index("fetch_a")
     assert finished.index("process") > finished.index("fetch_b")
+
+
+@pytest.mark.asyncio
+async def test_output_injection_appended_when_no_json_block(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": f"name: root\n{PROVIDERS_BLOCK}\noutput: [greeting]\n",
+            "instructions.md": "say hello",
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    seen_instructions = []
+
+    def script(instructions, tools, messages):
+        seen_instructions.append(instructions)
+        return AgentResponse(text='```json\n{"greeting": "hi"}\n```')
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    result = await executor.run()
+    assert result.context["greeting"] == "hi"
+    assert "exactly these keys" in seen_instructions[0]
+    assert "greeting" in seen_instructions[0]
+
+
+@pytest.mark.asyncio
+async def test_output_injection_skipped_when_json_block_present(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": f"name: root\n{PROVIDERS_BLOCK}\noutput: [greeting]\n",
+            "instructions.md": 'say hello\n\n```json\n{"greeting": "value"}\n```\n',
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    seen_instructions = []
+
+    def script(instructions, tools, messages):
+        seen_instructions.append(instructions)
+        return AgentResponse(text='```json\n{"greeting": "hi"}\n```')
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    await executor.run()
+    assert "exactly these keys" not in seen_instructions[0]
+
+
+@pytest.mark.asyncio
+async def test_output_dict_form_with_types(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": (
+                f"name: root\n{PROVIDERS_BLOCK}\n"
+                "output:\n  score: int\n  label: str\n"
+            ),
+            "instructions.md": "classify",
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    seen_instructions = []
+
+    def script(instructions, tools, messages):
+        seen_instructions.append(instructions)
+        return AgentResponse(text='```json\n{"score": 42, "label": "good"}\n```')
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    result = await executor.run()
+    assert result.context["score"] == 42
+    assert result.context["label"] == "good"
+    assert "<int>" in seen_instructions[0]
+    assert "<str>" in seen_instructions[0]

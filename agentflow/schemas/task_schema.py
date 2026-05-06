@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ProviderConfig(BaseModel):
@@ -91,7 +91,14 @@ class TaskConfig(BaseModel):
     providers: ProvidersBlock | None = None
 
     input: IOBlock | None = None
-    output: list[str] | None = None
+    output: dict[str, str | None] | None = None
+
+    @field_validator("output", mode="before")
+    @classmethod
+    def _normalise_output(cls, v: Any) -> Any:
+        if isinstance(v, list):
+            return {k: None for k in v}
+        return v
 
     subtasks: SubtasksBlock | None = None
     tools: ToolsBlock | None = None

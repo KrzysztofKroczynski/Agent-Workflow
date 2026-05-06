@@ -15,9 +15,3 @@ Output the complete, ready-to-submit CV text. Then choose an output filename:
 1. Call `list_output_files` with `output_dir` set to `"examples/cv_pipeline/output"`.
 2. If the result contains `cv.pdf`, use `cv_2.pdf`; if that exists too, increment the number.
 3. If the directory is empty or does not exist, use `cv.pdf`.
-
-Respond with ONLY a JSON code block:
-
-```json
-{"final_cv": "... the complete final CV text ...", "output_filename": "cv.pdf"}
-```

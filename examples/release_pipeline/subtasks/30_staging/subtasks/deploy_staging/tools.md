@@ -22,6 +22,6 @@ def write_staging_manifest(ctx, artifact_path: str, version: str, staging_dir: s
 
     return {
         "staging_url": f"http://staging.example.com/{version}",
-        "manifest_path": str(manifest_path),
+        "staging_manifest_path": str(manifest_path),
     }
 ```

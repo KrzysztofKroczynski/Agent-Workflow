@@ -76,7 +76,7 @@ def run(path: str, context_json: str | None, verbose: bool) -> None:
         console.print(f"\n[red]Workflow failed:[/red] {e}")
         sys.exit(1)
     console.rule("[dim]output[/dim]", style="dim")
-    output_keys = root.config.output or []
+    output_keys = list(root.config.output.keys()) if root.config.output else []
     output = (
         {k: result.context[k] for k in output_keys if k in result.context}
         if output_keys

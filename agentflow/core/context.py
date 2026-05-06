@@ -95,7 +95,7 @@ class ContextManager:
             logger.warning(
                 "Task '%s' declared output keys %s but response had no JSON; storing raw text under each key.",
                 task.name,
-                declared,
+                list(declared.keys()),
             )
             for key in declared:
                 self._data[key] = response_text

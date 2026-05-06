@@ -12,9 +12,3 @@ Review the CV strictly for job fit. Identify:
 - Specific keywords from the job description that should appear in the CV
 
 Be specific and actionable. Reference exact lines or sections of the CV.
-
-Respond with ONLY a JSON code block:
-
-```json
-{"fit_review": "... your detailed review and suggestions ..."}
-```

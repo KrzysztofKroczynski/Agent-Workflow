@@ -6,7 +6,7 @@ input:
     - src_dir
 
 output:
-  - compile_result
+  - compile_passed
 
 settings:
   timeout: 60
