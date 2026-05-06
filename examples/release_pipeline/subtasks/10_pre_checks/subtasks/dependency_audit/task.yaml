@@ -1,0 +1,12 @@
+name: dependency_audit
+on_failure: skip
+
+input:
+  required:
+    - requirements_file
+
+output:
+  - dependency_result
+
+settings:
+  timeout: 60

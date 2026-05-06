@@ -1,0 +1,15 @@
+name: staging
+priority: 30
+
+output:
+  - staging_summary
+
+subtasks:
+  execution_type: loop
+  until: "context.get('approved') == True"
+  max_iterations: 3
+  iteration_timeout: 120
+  on_max_iterations: fail
+
+settings:
+  timeout: 400

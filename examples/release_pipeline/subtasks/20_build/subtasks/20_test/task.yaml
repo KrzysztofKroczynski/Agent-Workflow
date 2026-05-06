@@ -1,0 +1,13 @@
+name: test
+priority: 20
+
+input:
+  required:
+    - test_dir
+
+output:
+  - test_result
+  - tests_passed
+
+settings:
+  timeout: 120

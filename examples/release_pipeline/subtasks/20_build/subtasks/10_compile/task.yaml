@@ -1,0 +1,12 @@
+name: compile
+priority: 10
+
+input:
+  required:
+    - src_dir
+
+output:
+  - compile_result
+
+settings:
+  timeout: 60

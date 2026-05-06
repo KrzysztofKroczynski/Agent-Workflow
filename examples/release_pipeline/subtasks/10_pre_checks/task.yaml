@@ -1,0 +1,12 @@
+name: pre_checks
+priority: 10
+
+output:
+  - pre_checks_summary
+  - pre_checks_passed
+
+subtasks:
+  on_error: continue
+
+settings:
+  timeout: 120

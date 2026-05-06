@@ -1,0 +1,13 @@
+name: run_integration_tests
+priority: 20
+
+input:
+  required:
+    - staging_manifest_path
+
+output:
+  - integration_tests_passed
+  - integration_report
+
+settings:
+  timeout: 60

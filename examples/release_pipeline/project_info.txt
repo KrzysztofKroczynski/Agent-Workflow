@@ -1,0 +1,6 @@
+Project: Calculator API
+Version: 1.2.0
+Language: Python 3.11
+Owner: platform-team
+Description: A simple REST API exposing arithmetic operations.
+Repo: github.com/example/calculator-api

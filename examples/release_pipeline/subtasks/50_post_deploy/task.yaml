@@ -1,0 +1,8 @@
+name: post_deploy
+priority: 50
+
+subtasks:
+  on_error: ignore
+
+settings:
+  timeout: 120

@@ -1,0 +1,15 @@
+name: review
+priority: 30
+
+input:
+  required:
+    - integration_tests_passed
+    - integration_report
+    - staging_url
+
+output:
+  - approved
+  - feedback
+
+settings:
+  timeout: 60

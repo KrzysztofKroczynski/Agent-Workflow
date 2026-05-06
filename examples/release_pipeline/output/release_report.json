@@ -1,0 +1,60 @@
+{
+  "generated_at": "2026-05-06T21:00:41.799873",
+  "version": "1.2.0",
+  "pre_checks": {
+    "passed": false,
+    "summary": {
+      "lint_result": "Passed with warnings",
+      "security_result": "Failed due to high severity findings",
+      "dependency_result": "Failed due to vulnerable dependencies"
+    },
+    "lint": {
+      "files_checked": 3,
+      "issues": [
+        "main.py: possible hardcoded secret",
+        "utils.py:7: missing space after comma"
+      ],
+      "passed": false
+    },
+    "security": {
+      "findings": [
+        "main.py: hardcoded secret"
+      ],
+      "severity": "high",
+      "passed": false
+    },
+    "dependencies": {
+      "packages_checked": 3,
+      "vulnerabilities": [
+        "flask==2.3.0: CVE-2023-30861 \u2014 upgrade to >=2.3.2",
+        "requests==2.28.0: CVE-2023-32681 \u2014 upgrade to >=2.31.0",
+        "pydantic==1.10.0: CVE-2024-3772 \u2014 upgrade to >=1.10.13"
+      ],
+      "passed": false
+    }
+  },
+  "build": {
+    "compile_passed": true,
+    "tests_passed": true,
+    "test_result": "5 passed in 0.03s",
+    "artifact_path": "examples/release_pipeline/output/release-1.2.0.zip"
+  },
+  "staging": {
+    "url": "http://staging.example.com/1.2.0",
+    "integration_tests_passed": true,
+    "integration_report": "3/3 integration checks passed: deployment_exists, version_matches, artifact_present",
+    "approved": true,
+    "feedback": "All integration checks passed on staging. Approved for production deployment.",
+    "summary": {
+      "deployment_url": "http://staging.example.com/1.2.0",
+      "what_was_deployed": "The latest release (1.2.0) was deployed to staging.",
+      "test_results": "Integration tests passed with a score of 3/3, and the artifact is present.",
+      "approval_decision": "Approved for production deployment."
+    }
+  },
+  "production": {
+    "url": "https://app.example.com",
+    "smoke_tests_passed": true
+  },
+  "errors": []
+}

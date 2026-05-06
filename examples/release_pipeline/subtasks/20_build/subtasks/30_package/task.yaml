@@ -1,0 +1,14 @@
+name: package
+priority: 30
+
+input:
+  required:
+    - src_dir
+    - output_dir
+    - version
+
+output:
+  - artifact_path
+
+settings:
+  timeout: 60

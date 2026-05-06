@@ -1,0 +1,8 @@
+name: build
+priority: 20
+
+subtasks:
+  execution_type: sequential
+
+settings:
+  timeout: 180

@@ -1,0 +1,11 @@
+name: smoke_tests
+
+input:
+  required:
+    - production_manifest_path
+
+output:
+  - smoke_tests_passed
+
+settings:
+  timeout: 60

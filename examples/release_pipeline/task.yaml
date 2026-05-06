@@ -1,0 +1,25 @@
+name: release_pipeline
+description: Runs pre-checks, builds, validates on staging in a loop, and deploys to production.
+
+providers:
+  default: ollama
+  ollama:
+    module: agentflow.providers.ollama
+    model: llama3.2:3b
+    base_url: http://localhost:11434
+
+settings:
+  timeout: 180
+  max_retries: 2
+
+subtasks:
+  execution_type: priority_groups
+
+context:
+  project_root: "examples/release_pipeline"
+  src_dir: "examples/release_pipeline/src"
+  test_dir: "examples/release_pipeline/tests"
+  requirements_file: "examples/release_pipeline/requirements.txt"
+  staging_dir: "examples/release_pipeline/.staging"
+  output_dir: "examples/release_pipeline/output"
+  version: "1.2.0"

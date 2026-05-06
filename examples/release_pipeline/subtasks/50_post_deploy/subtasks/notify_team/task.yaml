@@ -1,0 +1,11 @@
+name: notify_team
+on_failure: skip
+
+input:
+  required:
+    - version
+    - production_url
+    - output_dir
+
+settings:
+  timeout: 30

@@ -1,0 +1,12 @@
+name: lint
+on_failure: skip
+
+input:
+  required:
+    - src_dir
+
+output:
+  - lint_result
+
+settings:
+  timeout: 60

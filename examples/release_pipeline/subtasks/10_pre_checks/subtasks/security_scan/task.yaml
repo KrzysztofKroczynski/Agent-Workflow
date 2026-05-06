@@ -1,0 +1,12 @@
+name: security_scan
+on_failure: skip
+
+input:
+  required:
+    - src_dir
+
+output:
+  - security_result
+
+settings:
+  timeout: 60

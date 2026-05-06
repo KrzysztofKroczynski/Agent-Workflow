@@ -1,0 +1,15 @@
+name: deploy_staging
+priority: 10
+
+input:
+  required:
+    - artifact_path
+    - version
+    - staging_dir
+
+output:
+  - staging_url
+  - staging_manifest_path
+
+settings:
+  timeout: 60
