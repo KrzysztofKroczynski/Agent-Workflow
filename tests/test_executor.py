@@ -79,9 +79,8 @@ async def test_three_task_pipeline(tmp_workflow):
     }
 
     def script(instructions, tools, messages):
-        text = (messages[0]["content"] if messages else "") + instructions
         for key, resp in responses.items():
-            if key in instructions or key in text:
+            if key in instructions:
                 return resp
         return AgentResponse(text="?")
 
