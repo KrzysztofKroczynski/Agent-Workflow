@@ -90,6 +90,47 @@ def test_invoke_python_tool(tmp_path: Path):
     assert result == 5
 
 
+def test_shell_tool_params_extracted(tmp_path: Path):
+    tools_md = """\
+## list_files
+> type: shell
+
+List files.
+
+```bash
+dir /b "%output_dir%" 2>nul
+```
+"""
+    p = tmp_path / "tools.md"
+    p.write_text(tools_md)
+    specs = parse_tools_md(p)
+    spec = specs[0]
+    assert spec.type == "shell"
+    assert "output_dir" in spec.parameters["properties"]
+    assert spec.parameters["properties"]["output_dir"]["type"] == "string"
+    assert "output_dir" in spec.parameters["required"]
+
+
+def test_shell_tool_bash_params_extracted(tmp_path: Path):
+    tools_md = """\
+## greet
+> type: shell
+
+Greet user.
+
+```bash
+echo "Hello $name, you are $age"
+```
+"""
+    p = tmp_path / "tools.md"
+    p.write_text(tools_md)
+    specs = parse_tools_md(p)
+    spec = specs[0]
+    assert "name" in spec.parameters["properties"]
+    assert "age" in spec.parameters["properties"]
+    assert set(spec.parameters["required"]) == {"name", "age"}
+
+
 def test_invoke_reference_tool_errors(tmp_path: Path):
     p = tmp_path / "tools.md"
     p.write_text(TOOLS_MD)

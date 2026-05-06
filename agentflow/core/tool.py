@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 from agentflow.exceptions import ToolError
+from agentflow.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 ToolType = Literal["python", "shell", "reference", "http", "mcp"]
 SUPPORTED_TYPES: set[str] = {"python", "shell", "reference"}
@@ -30,6 +33,29 @@ class ToolSpec:
 
 @dataclass
 class ToolContext:
+    """Runtime context passed to every python tool that accepts a `ctx` parameter.
+
+    The framework logs every tool invocation automatically (call, result, errors) at
+    DEBUG level via the ``agentflow`` logger. Use ``ctx.logger`` inside your tool for
+    additional, tool-specific messages — e.g. progress, warnings, or details that are
+    only meaningful inside that tool. If your tool doesn't need to log anything extra,
+    you can omit ``ctx`` from its signature entirely and the framework logging still runs.
+
+    Set the log level with the ``AGENTFLOW_LOG_LEVEL`` env var (default: INFO).
+    DEBUG shows full tool invocation traces.
+
+    Example tool with logging::
+
+        def fetch_data(ctx: ToolContext, url: str) -> str:
+            ctx.logger.info("fetching %s", url)
+            ...
+
+    Example simple tool without logging (framework still logs the call)::
+
+        def add(a: int, b: int) -> int:
+            return a + b
+    """
+
     workflow_root: Path
     task_path: Path
     state: dict[str, Any]
@@ -105,6 +131,18 @@ def tool(
 _HEADING_RE = re.compile(r"^##\s+(\S.*?)\s*$")
 _BLOCKQUOTE_RE = re.compile(r"^>\s*(.*?)\s*$")
 _FENCE_RE = re.compile(r"^```(\w+)?\s*$")
+_CMD_VAR_RE = re.compile(r"%([A-Za-z_][A-Za-z0-9_]*)%")
+_BASH_VAR_RE = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+
+
+def _extract_shell_params(script: str) -> dict[str, Any]:
+    names: set[str] = set()
+    names.update(_CMD_VAR_RE.findall(script))
+    names.update(_BASH_VAR_RE.findall(script))
+    if not names:
+        return {"type": "object", "properties": {}}
+    props = {n: {"type": "string"} for n in sorted(names)}
+    return {"type": "object", "properties": props, "required": sorted(names)}
 
 
 def _parse_metadata_line(line: str) -> tuple[str, str] | None:
@@ -182,6 +220,7 @@ def parse_tools_md(path: Path) -> list[ToolSpec]:
             parameters = _build_parameters_schema(func)
         elif ttype == "shell":
             impl = "\n".join(code_lines)
+            parameters = _extract_shell_params(impl)
         elif ttype == "reference":
             impl = None
         else:  # pragma: no cover
@@ -290,6 +329,16 @@ class ToolRegistry:
         return merged
 
     def invoke(self, spec: ToolSpec, ctx: ToolContext, **kwargs: Any) -> Any:
+        logger.debug("tool '%s' called | args=%s", spec.name, kwargs)
+        try:
+            result = self._invoke_impl(spec, ctx, **kwargs)
+        except Exception as exc:
+            logger.warning("tool '%s' raised %s: %s", spec.name, type(exc).__name__, exc)
+            raise
+        logger.debug("tool '%s' returned | result=%s", spec.name, result)
+        return result
+
+    def _invoke_impl(self, spec: ToolSpec, ctx: ToolContext, **kwargs: Any) -> Any:
         if spec.type == "python":
             func = spec.impl
             sig = inspect.signature(func)

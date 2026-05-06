@@ -6,9 +6,12 @@ input:
     - cv_draft
     - fit_review
     - quality_review
+  optional:
+    - cv_style
 
 output:
   - final_cv
+  - output_filename
 
 settings:
   timeout: 120

@@ -1,3 +1,26 @@
+"""Logging setup for AgentFlow.
+
+All framework loggers live under the ``agentflow`` namespace so they can be
+controlled as a group.
+
+Usage
+-----
+From any framework module::
+
+    from agentflow.utils.logging import get_logger
+    logger = get_logger(__name__)
+
+From a tool that accepts ``ctx``::
+
+    def my_tool(ctx, arg: str) -> str:
+        ctx.logger.info("doing thing with %s", arg)
+        ...
+
+Log level
+---------
+Set ``AGENTFLOW_LOG_LEVEL`` env var (default: ``INFO``).
+``DEBUG`` enables per-tool invocation traces (args, return values, errors).
+"""
 import logging
 import os
 

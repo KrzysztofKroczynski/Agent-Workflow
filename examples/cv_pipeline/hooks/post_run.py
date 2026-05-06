@@ -26,7 +26,8 @@ def run(ctx: Any, task: Any) -> None:
 
     output_dir = Path(ctx.workflow_root) / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "cv.pdf"
+    filename = ctx.state.get("output_filename") or "cv.pdf"
+    output_path = output_dir / filename
 
     _render_pdf(final_cv, output_path)
     ctx.logger.info("CV PDF saved -> %s", output_path)

@@ -7,6 +7,8 @@ input:
     - job_title
     - job_description
     - key_requirements
+  optional:
+    - cv_style
 
 output:
   - cv_draft
