@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any
 
 from agentflow.core.agent import AgentResponse, ProviderRegistry, ToolCall
@@ -105,15 +106,132 @@ class TaskExecutor:
         fn(ctx, task)
 
     async def _run_subtasks(self, task: Task) -> None:
-        execution_type = "parallel"
-        if task.config.subtasks and task.config.subtasks.execution_type:
-            execution_type = task.config.subtasks.execution_type
-
+        execution_type = (
+            task.config.subtasks.execution_type if task.config.subtasks else "parallel"
+        )
         if execution_type == "sequential":
-            for child in task.subtasks:
-                await self._run_task(child)
+            await self._run_sequential(task)
+        elif execution_type == "loop":
+            await self._run_loop(task)
+        elif execution_type == "priority_groups":
+            await self._run_priority_groups(task)
         else:
-            await asyncio.gather(*(self._run_task(c) for c in task.subtasks))
+            await self._run_parallel(task)
+
+    def _get_on_error(self, task: Task) -> str:
+        if task.config.subtasks:
+            return task.config.subtasks.on_error
+        return "fail"
+
+    async def _run_child(self, child: Task, on_error: str, iteration: int | None = None) -> bool:
+        """Run one child task applying on_failure then on_error policy. Returns False on non-fatal failure."""
+        on_failure = child.config.on_failure if child.config else "fail"
+        try:
+            await self._run_task(child)
+            return True
+        except Exception as exc:
+            if on_failure == "skip":
+                self.context.record_error(child.name, exc, iteration)
+                logger.warning("Task '%s' failed and was skipped: %s", child.name, exc)
+                return False
+            if on_failure == "use_default":
+                self.context.record_error(child.name, exc, iteration)
+                default = child.config.default_output if child.config else {}
+                self.context.data.update(default)
+                logger.warning("Task '%s' failed; using default output.", child.name)
+                return False
+            # on_failure == "fail" — group policy decides
+            if on_error in ("continue", "ignore"):
+                self.context.record_error(child.name, exc, iteration)
+                logger.warning("Task '%s' failed (%s): %s", child.name, on_error, exc)
+                return False
+            raise
+
+    async def _run_sequential(self, task: Task) -> None:
+        on_error = self._get_on_error(task)
+        any_failed = False
+        for child in task.subtasks:
+            success = await self._run_child(child, on_error)
+            if not success:
+                any_failed = True
+        if any_failed and on_error == "continue":
+            raise AgentflowError(f"One or more subtasks of '{task.name}' failed.")
+
+    async def _run_parallel(self, task: Task) -> None:
+        on_error = self._get_on_error(task)
+        results = await asyncio.gather(*(self._run_child(c, on_error) for c in task.subtasks))
+        if not all(results) and on_error == "continue":
+            raise AgentflowError(f"One or more subtasks of '{task.name}' failed.")
+
+    async def _run_loop(self, task: Task) -> None:
+        cfg = task.config.subtasks
+        until = cfg.until if cfg else None
+        max_iterations = cfg.max_iterations if cfg else None
+        iteration_timeout = cfg.iteration_timeout if cfg else None
+        on_max_iterations = cfg.on_max_iterations if cfg else "fail"
+        on_error = self._get_on_error(task)
+
+        if max_iterations is None:
+            raise AgentflowError(f"Loop task '{task.name}' requires max_iterations.")
+
+        for i in range(max_iterations):
+            snap = self.context.snapshot()
+            try:
+                coro = self._run_loop_iteration(task, i)
+                if iteration_timeout:
+                    await asyncio.wait_for(coro, timeout=iteration_timeout)
+                else:
+                    await coro
+            except asyncio.TimeoutError as exc:
+                if on_error in ("continue", "ignore"):
+                    self.context.restore(snap)
+                    self.context.record_error(task.name, TaskTimeoutError(f"iteration {i} timed out"), i)
+                    continue
+                raise TaskTimeoutError(
+                    f"Loop '{task.name}' iteration {i} timed out after {iteration_timeout}s."
+                ) from exc
+            except Exception as exc:
+                if on_error in ("continue", "ignore"):
+                    self.context.restore(snap)
+                    self.context.record_error(task.name, exc, i)
+                    continue
+                raise
+
+            if until:
+                try:
+                    if eval(until, {"__builtins__": {}}, {"context": self.context.data}):  # noqa: S307
+                        logger.info("Loop '%s' condition met after %d iteration(s).", task.name, i + 1)
+                        return
+                except Exception as e:
+                    raise AgentflowError(f"Loop 'until' eval failed in '{task.name}': {e}") from e
+
+        if until:
+            if on_max_iterations == "fail":
+                raise AgentflowError(
+                    f"Loop '{task.name}' reached max_iterations ({max_iterations}) without condition being met."
+                )
+            logger.warning("Loop '%s' hit max_iterations; proceeding with last result.", task.name)
+
+    async def _run_loop_iteration(self, task: Task, iteration: int) -> None:
+        for child in task.subtasks:
+            await self._run_child(child, "fail", iteration)
+
+    async def _run_priority_groups(self, task: Task) -> None:
+        on_error = self._get_on_error(task)
+        groups: dict[int, list[Task]] = {}
+        for child in task.subtasks:
+            m = re.match(r"^(\d+)_", child.name)
+            pri = int(m.group(1)) if m else (child.config.priority if child.config else 50)
+            groups.setdefault(pri, []).append(child)
+
+        any_failed = False
+        for group_tasks in (groups[k] for k in sorted(groups)):
+            results = await asyncio.gather(*(self._run_child(c, on_error) for c in group_tasks))
+            if not all(results):
+                any_failed = True
+
+        if any_failed and on_error == "continue":
+            raise AgentflowError(f"One or more subtasks of '{task.name}' failed.")
 
     async def _invoke_agent(
         self, task: Task, settings: Any, final_pass: bool = False

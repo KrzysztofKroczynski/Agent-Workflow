@@ -189,3 +189,224 @@ async def test_sequential_subtasks_in_order(tmp_workflow):
     result = await executor.run()
     audit_names = [a.task_name for a in result.audit if a.task_name in ("first", "second")]
     assert audit_names == ["first", "second"]
+
+
+@pytest.mark.asyncio
+async def test_on_failure_skip(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": f"name: root\n{PROVIDERS_BLOCK}\nsubtasks:\n  execution_type: sequential\n",
+            "subtasks": {
+                "bad": {
+                    "task.yaml": "on_failure: skip\n",
+                    "instructions.md": "fail_me",
+                },
+                "good": {"instructions.md": "ok"},
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+
+    def script(instructions, tools, messages):
+        if "fail_me" in instructions:
+            raise RuntimeError("deliberate")
+        return AgentResponse(text="done")
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    result = await executor.run()
+    assert result.context["good"] == "done"
+    assert any(e["task"] == "bad" for e in result.context["_errors"])
+
+
+@pytest.mark.asyncio
+async def test_on_failure_use_default(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": f"name: root\n{PROVIDERS_BLOCK}\nsubtasks:\n  execution_type: sequential\n",
+            "subtasks": {
+                "fetcher": {
+                    "task.yaml": (
+                        "on_failure: use_default\n"
+                        "default_output:\n  raw_data: []\n"
+                    ),
+                    "instructions.md": "fail_me",
+                },
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+
+    def script(instructions, tools, messages):
+        if "fail_me" in instructions:
+            raise RuntimeError("deliberate")
+        return AgentResponse(text="ok")
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    result = await executor.run()
+    assert result.context["raw_data"] == []
+    assert any(e["task"] == "fetcher" for e in result.context["_errors"])
+
+
+@pytest.mark.asyncio
+async def test_on_error_continue_sequential(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": (
+                f"name: root\n{PROVIDERS_BLOCK}\n"
+                "subtasks:\n  execution_type: sequential\n  on_error: continue\n"
+            ),
+            "subtasks": {
+                "first": {"instructions.md": "fail_me"},
+                "second": {"instructions.md": "ok"},
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    ran = []
+
+    def script(instructions, tools, messages):
+        if "fail_me" in instructions:
+            raise RuntimeError("deliberate")
+        ran.append("second")
+        return AgentResponse(text="done")
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    with pytest.raises(Exception):
+        await executor.run()
+    assert "second" in ran
+    assert any(e["task"] == "first" for e in executor.context.data.get("_errors", []))
+
+
+@pytest.mark.asyncio
+async def test_on_error_ignore_parallel(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": (
+                f"name: root\n{PROVIDERS_BLOCK}\n"
+                "subtasks:\n  on_error: ignore\n"
+            ),
+            "subtasks": {
+                "bad": {"instructions.md": "fail_me"},
+                "good": {"instructions.md": "ok"},
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+
+    def script(instructions, tools, messages):
+        if "fail_me" in instructions:
+            raise RuntimeError("deliberate")
+        return AgentResponse(text="success")
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    result = await executor.run()
+    assert result.context["good"] == "success"
+    assert any(e["task"] == "bad" for e in result.context["_errors"])
+
+
+@pytest.mark.asyncio
+async def test_loop_runs_until_condition(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": (
+                f"name: root\n{PROVIDERS_BLOCK}\n"
+                "subtasks:\n"
+                "  execution_type: loop\n"
+                "  max_iterations: 5\n"
+                "  until: \"context.get('approved') == True\"\n"
+            ),
+            "subtasks": {
+                "reviewer": {
+                    "task.yaml": "output: [approved]\n",
+                    "instructions.md": "review",
+                },
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    call_count = [0]
+
+    def script(instructions, tools, messages):
+        call_count[0] += 1
+        approved = call_count[0] >= 3
+        return AgentResponse(text=f'```json\n{{"approved": {str(approved).lower()}}}\n```')
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    result = await executor.run()
+    assert result.context["approved"] is True
+    assert call_count[0] == 3
+
+
+@pytest.mark.asyncio
+async def test_loop_fails_on_max_iterations(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": (
+                f"name: root\n{PROVIDERS_BLOCK}\n"
+                "subtasks:\n"
+                "  execution_type: loop\n"
+                "  max_iterations: 3\n"
+                "  until: \"context.get('approved') == True\"\n"
+                "  on_max_iterations: fail\n"
+            ),
+            "subtasks": {
+                "reviewer": {
+                    "task.yaml": "output: [approved]\n",
+                    "instructions.md": "review",
+                },
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    fake = FakeProvider()
+    fake.configure(script=[AgentResponse(text='```json\n{"approved": false}\n```')])
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    with pytest.raises(Exception, match="max_iterations"):
+        await executor.run()
+
+
+@pytest.mark.asyncio
+async def test_priority_groups_order(tmp_workflow):
+    root = tmp_workflow(
+        {
+            "task.yaml": (
+                f"name: root\n{PROVIDERS_BLOCK}\n"
+                "subtasks:\n  execution_type: priority_groups\n"
+            ),
+            "subtasks": {
+                "10_fetch_a": {"instructions.md": "fetch_a"},
+                "10_fetch_b": {"instructions.md": "fetch_b"},
+                "20_process": {"instructions.md": "process"},
+            },
+        }
+    )
+    loader = TaskLoader()
+    task = loader.load(root)
+    finished: list[str] = []
+
+    def script(instructions, tools, messages):
+        finished.append(instructions.strip())
+        return AgentResponse(text="ok")
+
+    fake = FakeProvider()
+    fake.configure(script=script)
+    executor = TaskExecutor(task, FixedRegistry(fake), loader.registry, ContextManager())
+    await executor.run()
+    assert finished.index("process") > finished.index("fetch_a")
+    assert finished.index("process") > finished.index("fetch_b")

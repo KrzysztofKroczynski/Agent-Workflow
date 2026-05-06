@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 from dataclasses import dataclass, field
@@ -111,3 +112,18 @@ class ContextManager:
     def finish_audit(self, entry: AuditEntry, status: str) -> None:
         entry.finished_at = datetime.now()
         entry.status = status
+
+    def record_error(self, task_name: str, error: Exception, iteration: int | None = None) -> None:
+        if "_errors" not in self._data:
+            self._data["_errors"] = []
+        self._data["_errors"].append({
+            "task": task_name,
+            "error": str(error),
+            "iteration": iteration,
+        })
+
+    def snapshot(self) -> dict[str, Any]:
+        return copy.deepcopy(self._data)
+
+    def restore(self, snap: dict[str, Any]) -> None:
+        self._data = snap

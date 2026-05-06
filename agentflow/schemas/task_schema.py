@@ -58,8 +58,13 @@ class IOBlock(BaseModel):
 
 
 class SubtasksBlock(BaseModel):
-    execution_type: Literal["sequential", "parallel"] = "parallel"
+    execution_type: Literal["sequential", "parallel", "graph", "loop", "priority_groups"] = "parallel"
     order: list[str] | None = None
+    on_error: Literal["fail", "continue", "ignore"] = "fail"
+    until: str | None = None
+    max_iterations: int | None = None
+    iteration_timeout: float | None = None
+    on_max_iterations: Literal["fail", "succeed_with_last"] = "fail"
 
 
 class ToolsBlock(BaseModel):
@@ -99,3 +104,5 @@ class TaskConfig(BaseModel):
     conditions: ConditionsBlock | None = None
     context: dict[str, Any] = Field(default_factory=dict)
     dependencies: list[str] = Field(default_factory=list)
+    on_failure: Literal["fail", "skip", "use_default"] = "fail"
+    default_output: dict[str, Any] = Field(default_factory=dict)

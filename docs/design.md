@@ -104,6 +104,8 @@ Tasks are discovered using a hybrid approach — auto-discovery by default, expl
 - **Ordering:** Each child declares `priority` in its own `task.yaml` (default: `50`). Recommended convention is multiples of 10 (`10`, `20`, `30`...) so new tasks can be inserted between existing ones without renumbering (e.g., `15` between `10` and `20`).
 - **Toggling:** Children can set `enabled: false` in their `task.yaml` to be skipped without deleting the folder.
 - **Default execution:** Auto-discovered children run in `parallel` by default (aligns with vertical data flow — siblings are independent). Parent can override via `subtasks.execution_type`.
+- **Loop execution:** `execution_type: loop` re-runs the entire subtask group as one iteration until an `until` condition evaluates to true or `max_iterations` is reached. Useful for generate-review cycles.
+- **Priority groups:** `execution_type: priority_groups` groups tasks by their numeric name prefix (`N_name`) and runs groups sequentially, tasks within a group in parallel. Zero per-task config — just name your folders.
 
 ### 2.8 Tool Discovery
 
@@ -413,7 +415,7 @@ output:
 
 # Subtask execution (optional — if omitted, subtasks/ is auto-discovered)
 # subtasks:
-#   execution_type: "parallel"  # sequential | parallel | graph (default: parallel)
+#   execution_type: "parallel"  # sequential | parallel | graph | loop | priority_groups (default: parallel)
 
 # Conditions for execution
 conditions:
@@ -421,6 +423,12 @@ conditions:
   retry_on:
     - ConnectionError
     - TimeoutError
+
+# Failure behavior (optional — overrides group-level on_error for this task)
+on_failure: fail          # fail (default) | skip | use_default
+default_output:           # used when on_failure: use_default
+  raw_data: null
+  fetch_metadata: {}
 ```
 
 **Remember: `task.yaml` itself is optional.** A folder with just `instructions.md` is a valid task.
@@ -605,10 +613,155 @@ The `@tool` decorator:
       - parallel: run all subtasks concurrently (asyncio.gather), merge outputs
       - graph: resolve dependency DAG, run independent subtasks in parallel,
         wait for dependencies before starting dependent subtasks
+      - loop: re-run subtask group as one iteration until `until` condition is true or `max_iterations` reached
+      - priority_groups: group tasks by numeric name prefix, run groups sequentially, tasks within a group in parallel
    0. If task has both instructions AND subtasks, agent gets a final pass to assemble child outputs
    0. TaskExecutor runs post-hooks (if `hooks/` exists)
    0. ContextManager merges output context (explicit `output` keys, or full response under task name)
 0. Root task collects final context as workflow output
+
+### 8.1 Loop Execution
+
+When `execution_type: loop`, the executor re-runs the entire subtask group as one **iteration** until:
+- The `until` condition evaluates to `true` against current context, OR
+- `max_iterations` is reached (triggers `on_max_iterations` behavior)
+
+```yaml
+subtasks:
+  execution_type: loop
+  until: "context.review_cv.approved == true"  # Python expression evaluated after each iteration
+  max_iterations: 5                             # Hard cap — required when using loop
+  iteration_timeout: 120                        # Seconds per iteration (optional)
+  on_max_iterations: fail                       # fail (default) | succeed_with_last
+  on_error: fail                                # fail (default) | continue
+```
+
+**Context between iterations:** Each iteration receives accumulated context from all previous iterations. Tasks within the loop overwrite context keys — a reviewer task writes `approved: true` when satisfied, the loop reads it via `until`.
+
+**`iteration_timeout` vs `settings.timeout`:**
+- `settings.timeout` — total wall-clock budget for the entire loop across all iterations
+- `iteration_timeout` — per-iteration deadline; if a single iteration exceeds it, that iteration is killed and `on_error` applies
+
+**`on_max_iterations`:**
+- `fail` (default) — pipeline fails if the `until` condition was never met
+- `succeed_with_last` — pipeline continues with whatever context the last iteration produced; emits a warning
+
+**CV pipeline example:**
+
+```
+cv_pipeline/
+    task.yaml
+    subtasks/
+        10_generate_cv/
+            instructions.md    # Generates or revises the CV
+        20_review_cv/
+            instructions.md    # Sets context key approved=true when satisfied
+```
+
+```yaml
+# cv_pipeline/task.yaml
+subtasks:
+  execution_type: loop
+  until: "context.review_cv.approved == true"
+  max_iterations: 5
+  iteration_timeout: 120
+  on_max_iterations: fail
+```
+
+### 8.2 Error Behavior
+
+Error handling operates at two levels: the group (how the executor responds when any task fails) and the individual task (how that task's failure is treated before the group policy applies).
+
+#### Group-level: `subtasks.on_error`
+
+Controls what the executor does when a task in the group fails:
+
+```yaml
+subtasks:
+  execution_type: parallel   # sequential | parallel | graph | loop
+  on_error: fail             # fail (default) | continue | ignore
+```
+
+| `on_error` value | Meaning |
+|---|---|
+| `fail` | First failure stops execution and fails the pipeline (default for all types) |
+| `continue` | Keep executing remaining tasks; fail the pipeline at the end if any task failed |
+| `ignore` | Treat failed tasks as successful no-ops (output absent from context); pipeline succeeds |
+
+**Per execution type nuances:**
+
+| Execution type | Default | Notes |
+|---|---|---|
+| `sequential` | `fail` | `continue` runs remaining tasks despite earlier failures — downstream tasks may have missing context keys |
+| `parallel` | `fail` | `fail` cancels in-flight siblings (fail-fast); `continue` waits for all before failing (fail-slow) |
+| `graph` | `fail` | Dependents of a failed task are always cancelled regardless of `on_error`; independent branches obey `on_error` |
+| `loop` | `fail` | `continue` treats a failed iteration as just another iteration, consuming one from `max_iterations`; context is rolled back to the pre-iteration snapshot before retrying |
+
+#### Task-level: `on_failure`
+
+Each task can declare its own failure behavior, overriding the group `on_error` for that specific task:
+
+```yaml
+on_failure: fail          # fail (default) | skip | use_default
+default_output:           # only used when on_failure: use_default
+  approved: false
+  result: ""
+```
+
+| `on_failure` value | Meaning |
+|---|---|
+| `fail` | Task failure propagates to group; group `on_error` applies (default) |
+| `skip` | Task failure is silently ignored; output absent from context; pipeline continues |
+| `use_default` | Task failure injects `default_output` into context as if the task succeeded |
+
+Task-level `on_failure` is evaluated first. Only if `on_failure: fail` does the group-level `on_error` come into play.
+
+#### Error surfacing: `context._errors`
+
+When a task fails non-fatally (group `on_error: continue | ignore`, or task `on_failure: skip | use_default`), the executor appends an entry to `context._errors`:
+
+```python
+context._errors = [
+    {"task": "fetch_data", "error": "TimeoutError: ...", "iteration": None},
+    ...
+]
+```
+
+This allows downstream tasks and final agent passes to reason about what went wrong. Combined with `skip_if`, it enables conditional recovery tasks without any Python hooks:
+
+```yaml
+# recovery_task/task.yaml
+conditions:
+  skip_if: "not any(e['task'] == 'fetch_data' for e in context.get('_errors', []))"
+```
+
+### 8.3 Priority Groups Execution
+
+`execution_type: priority_groups` discovers tasks by their numeric name prefix and runs them as sequential groups of parallel tasks — no per-task config required.
+
+**Naming convention:** `N_task_name` where `N` is any integer. Tasks with the same `N` form a parallel group. Groups execute in ascending numeric order.
+
+```
+subtasks/
+    10_fetch_a/     ─┐ group 1 — runs in parallel
+    10_fetch_b/     ─┘
+    20_process/     ── group 2 — runs after group 1 completes
+    30_report_a/    ─┐ group 3 — runs after group 2 completes
+    30_report_b/    ─┘
+```
+
+```yaml
+# parent/task.yaml
+subtasks:
+  execution_type: priority_groups
+```
+
+**Rules:**
+- Tasks without a numeric prefix are treated as priority `50` (same default as `priority` field)
+- A group with a single task still runs as a group — no special casing needed
+- `on_error` applies per group: a failure in group 1 stops group 2 from starting (when `on_error: fail`)
+- Per-task `on_failure` still applies within each group
+- Explicit `priority` in `task.yaml` overrides the name-inferred value if both are present
 
 ## 9. Error Handling & Recovery
 
@@ -617,7 +770,7 @@ The `@tool` decorator:
 | Tool raises exception | Retry up to `max_retries`, then surface to agent for reasoning |
 | Agent fails to produce output | Re-prompt with error context, escalate after retries |
 | Task timeout | Kill task, run error hooks, skip or fail per config |
-| Subtask failure | Bubble up to parent task, parent decides to retry/skip/fail |
+| Subtask failure | Task-level `on_failure` evaluated first, then group `subtasks.on_error`; failed non-fatal tasks append to `context._errors` (see §8.2) |
 | Root-level failure | Save checkpoint, allow resume from last successful task |
 
 ### Checkpointing
