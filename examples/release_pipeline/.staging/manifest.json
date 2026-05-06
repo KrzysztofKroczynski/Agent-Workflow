@@ -1,7 +1,0 @@
-{
-  "version": "1.2.0",
-  "artifact": "examples/release_pipeline/output/release-1.2.0.zip",
-  "deployed_at": "2026-05-06T20:59:08.568246",
-  "environment": "staging",
-  "status": "deployed"
-}
