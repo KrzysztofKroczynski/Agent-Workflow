@@ -264,14 +264,83 @@ agentflow tree ./my_workflow
    a. Prepare input context
    b. Run pre-hooks
    c. Invoke agent with instructions + tools + context  [if instructions.md]
-   d. Dispatch subtasks  [sequential | parallel | graph]
+   d. Dispatch subtasks  [sequential | parallel | graph | loop | priority_groups]
    e. Final agent pass to assemble child outputs  [if both instructions + subtasks]
    f. Run post-hooks
    g. Merge output into context
 4. Return final context
 ```
 
-Parallel subtasks run via `asyncio.gather`. Execution state is checkpointed after each task under `.agentflow/checkpoints/` — failed workflows can resume from the last successful step.
+### Execution types
+
+| Type | Behaviour |
+|---|---|
+| `parallel` | All subtasks run concurrently (default) |
+| `sequential` | Subtasks run one by one in priority order |
+| `graph` | DAG via `depends_on` — independent tasks run in parallel, dependents wait |
+| `loop` | Re-runs the subtask group as one iteration until an `until` condition is met or `max_iterations` is reached |
+| `priority_groups` | Tasks grouped by `N_name` prefix — groups run sequentially, tasks within a group run in parallel |
+
+**Loop example** — generate-review cycle:
+
+```yaml
+# cv_pipeline/task.yaml
+subtasks:
+  execution_type: loop
+  until: "context.get('approved') == True"
+  max_iterations: 5
+  iteration_timeout: 120   # seconds per iteration
+  on_max_iterations: fail  # fail | succeed_with_last
+```
+
+**Priority groups example** — zero config, name-driven:
+
+```
+subtasks/
+    10_fetch_a/    ─┐ parallel
+    10_fetch_b/    ─┘
+    20_process/    ── waits for group 10
+    30_report/     ── waits for group 20
+```
+
+```yaml
+subtasks:
+  execution_type: priority_groups
+```
+
+Execution state is checkpointed after each task under `.agentflow/checkpoints/` — failed workflows can resume from the last successful step.
+
+---
+
+## Error handling
+
+Two levels of control:
+
+**Task-level `on_failure`** — how this task's own failure is treated:
+
+```yaml
+on_failure: skip        # swallow error, continue pipeline
+# or
+on_failure: use_default
+default_output:
+  result: ""            # injected into context as if task succeeded
+```
+
+**Group-level `on_error`** — what the executor does when any child fails:
+
+```yaml
+subtasks:
+  on_error: continue    # run all, fail at end
+  # or
+  on_error: ignore      # run all, pipeline succeeds regardless
+```
+
+`on_failure` takes precedence over `on_error`. Failed non-fatal tasks append to `context._errors` — downstream tasks and agent passes can inspect it:
+
+```yaml
+conditions:
+  skip_if: "not any(e['task'] == 'fetch_data' for e in context.get('_errors', []))"
+```
 
 ---
 
@@ -286,6 +355,9 @@ MVP. Core framework is working end-to-end:
 - [x] Ollama provider
 - [x] CLI (`run`, `validate`, `tree`, `status`)
 - [x] Test suite
+- [x] Loop execution type (`until`, `max_iterations`, `iteration_timeout`)
+- [x] Priority groups execution type (`N_name` prefix convention)
+- [x] Error handling — `on_failure`, `on_error`, `context._errors`
 - [ ] Claude provider
 - [ ] OpenAI provider
 - [ ] Streaming output
